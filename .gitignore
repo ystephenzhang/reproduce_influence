@@ -1,0 +1,6 @@
+*.pth
+reference/*
+tf/*
+mnist/*
+*.png
+data/*
