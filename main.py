@@ -16,11 +16,11 @@ def calculate_influence(train_idx, train_dataset, test_idx, test_dataset, model)
     Calculate I_{up, loss}(z, z_{test}) as described in paper.
     '''
     grad_test = calculate_grad_L([test_idx], model, test_dataset)
-    s_test = inverse_hvp(train_dataset, model, grad_test[0])
-    #s_test = inverse_hvp_with_oracle(train_dataset, model, grad_test[0])
+    #s_test = inverse_hvp(train_dataset, model, grad_test[0])
+    s_test = inverse_hvp_with_oracle(grad_test[0], "hessian_matrix.pt")
     grad_train = calculate_grad_L(train_idx, model, train_dataset)
     
-    influence = [torch.dot(s_test, x) for x in grad_train]
+    influence = [-torch.dot(s_test, x) for x in grad_train]
     return influence
 
 def experiment(n=5):
@@ -40,7 +40,7 @@ def experiment(n=5):
     return influence, retrained
 
 if __name__ == "__main__":
-    influnce, retrained = experiment(10)
+    influnce, retrained = experiment(4)
     predicted_loss = [x[1].detach().numpy() for x in influnce]
     actual_loss = [x.detach().numpy() for x in retrained]
     print(predicted_loss, actual_loss)
@@ -49,3 +49,18 @@ if __name__ == "__main__":
     plt.ylabel('retrained')
     
     plt.savefig('test.png')
+
+'''
+if __name__ == "__main__":
+    from torch.utils.data import Subset
+    if os.path.exists('trained_without_None.pth'):
+        model = LogisticRegressionModel(28 * 28, 10)
+        model.load_state_dict(torch.load('trained_without_None.pth'))
+    else:
+        model = train(remove=None, epoch=50)
+    
+    model.eval()
+    train_data, _ = prepare_mnist_dataset()
+    H = actual_H_with_distributed_parallel(train_data, model)
+    torch.save(H, 'hessian_matrix.pt')
+'''

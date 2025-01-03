@@ -73,7 +73,7 @@ def test_single(model, x, y):
     y_pred = model.forward(x)
     return -torch.log(y_pred[0][y])
     
-def train(remove = None, epoch = 1):
+def train(remove = None, epoch = 10):
     model = LogisticRegressionModel(28 * 28, 10)
     train_loader, _ = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
