@@ -28,17 +28,11 @@ def calculate_grad_L(idx, model, dataset, bsize=4, graph=False):
         x = torch.stack([x[0] for x in target]) 
         y = torch.stack([torch.tensor(x[1]) for x in target]) 
     
-    #for i in tqdm(range(len(idx)), desc="Calculating gradient of loss of z test"):
-    #    target = dataset[idx[0]]
-    #    x = torch.Tensor([x[0] for x in target]) 
-    #    y = torch.Tensor([x[1] for x in target]) 
-    
         model.zero_grad()
         pred = model(x.view(-1, 784))
         loss = criterion(pred, y)
         grad_this = torch.autograd.grad(loss, model.parameters(), create_graph=graph, retain_graph=True)
         grad_this = torch.cat((grad_this[0].flatten(), grad_this[1].flatten()))
-        #grad_this = grad_this[0].flatten()
         
         grad.append(grad_this)
     
@@ -131,7 +125,6 @@ def inverse_hvp(train_dataset, model, v, t=500, r=2):
         samples = torch.randint(0, len(train_dataset), (t,))
         for j in tqdm(range(t), desc=f"Iterating, stabilizing: {change:.2f}"):
             idx = samples[j]
-            print(idx)
             x = train_dataset[idx][0].view(1, -1)
             y = torch.tensor([train_dataset[idx][1]])
             
@@ -162,12 +155,13 @@ def inverse_hvp(train_dataset, model, v, t=500, r=2):
             '''
             hessian_vec = hvp_approx(model, y, x, product)
             '''
-            product = v + product - hessian_vec 
+            hessian_vec = hessian_vec + 1e-4 * product
+            product = v + (product - hessian_vec) / 25
             print(torch.norm(product), torch.norm(hessian_vec))
         if Hv is None:
-            Hv = product 
+            Hv = product / 25
         else:
-            Hv = Hv + product
+            Hv = Hv + product / 25
         #Hv = (Hv * i + product) / (i + 1)
         print(torch.norm(Hv))
     Hv = Hv / r
@@ -206,10 +200,22 @@ def calculate_actual_H(train_dataset, model):
             H = (H * i + h) / (i + 1)
     return H
             
-def inverse_hvp_with_oracle(train_dataset, model, v, t=5):
+def inverse_hvp_with_oracle(train_dataset, model, v, t=10):
     H = calculate_actual_H(train_dataset, model)
     change = 0
     product = v
     for j in tqdm(range(t), desc=f"Iterating, stabilizing: {change:.2f}"):
         product = v + product - torch.matmul(H, product)
     return product
+
+def inverse_hvp_with_oracle(v, dir, t=20):
+    H = torch.load(dir)
+    product = v
+    change = 0
+    for j in tqdm(range(t), desc=f"Iterating, stabilizing: {change:.2f}"):
+        old_product = product
+        product = v + old_product - torch.matmul(H, old_product) / 10
+        change = torch.norm(product - old_product)
+        step = torch.norm(v - torch.matmul(H, old_product))
+        print(change, step)
+    return product / 10
