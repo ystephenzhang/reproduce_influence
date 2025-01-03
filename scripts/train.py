@@ -70,6 +70,7 @@ def test(model, test_loader):
     return 
 
 def test_single(model, x, y):
+    model.eval()
     y_pred = model.forward(x)
     return -torch.log(y_pred[0][y])
     
@@ -79,7 +80,7 @@ def train(remove = None, epoch = 10):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.008)
     
-    name = "trained_without_" + str(remove)
+    name = "models/trained_without_" + str(remove)
     train_procedure(model, train_loader, criterion, optimizer, num_epochs = epoch)
     torch.save(model.state_dict(), name + ".pth")
 

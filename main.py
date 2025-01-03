@@ -1,11 +1,25 @@
 from scripts.train import *
 from influence.hvp import *
 import matplotlib.pyplot as plt
-import os
-def leave_one_out(train_idx, test_idx):
-    _model = train(remove=None)
-    model = train(remove=train_idx)
+import os, pickle
+
+def load_model(idx=None, epoch=20):
+    if os.path.exists("data/models/trained_without" + str(idx) + ".pth"):
+        model = LogisticRegressionModel(28 * 28, 10)
+        model.load_state_dict(torch.load("data/models/trained_without" + str(idx) + ".pth"))
+    else:
+        model = train(remove=idx, epoch=epoch)
     
+    return model
+
+def save_result(lst, dir):
+    with open(dir, 'wb') as f:
+        pickle.dump(lst, f)
+    
+def leave_one_out(train_idx, test_idx):
+    _model = load_model()
+    model = load_model(train_idx)
+     
     _, test_dataset = prepare_mnist(remove=None)
     x = test_dataset[test_idx[0]][0].view(1, -1)
     y = torch.tensor([test_dataset[test_idx[0]][1]]) 
@@ -24,11 +38,7 @@ def calculate_influence(train_idx, train_dataset, test_idx, test_dataset, model)
     return influence
 
 def experiment(n=5):
-    if os.path.exists('trained_without_None.pth'):
-        model = LogisticRegressionModel(28 * 28, 10)
-        model.load_state_dict(torch.load('trained_without_None.pth'))
-    else:
-        model = train(remove=None, epoch=50)
+    model = load_model()
     
     model.eval()
     train_data, test_data = prepare_mnist_dataset()
@@ -36,6 +46,7 @@ def experiment(n=5):
     
     influence = calculate_influence(range(len(train_data)), train_data, test_idx, test_data, model)
     influence = sorted(enumerate(influence), key=lambda x: x[1], reverse=True)[:n]
+    influence = [-x / len(train_data) for x in influence]
     retrained = [leave_one_out(x[0], test_idx) for x in influence]
     return influence, retrained
 
@@ -43,6 +54,8 @@ if __name__ == "__main__":
     influnce, retrained = experiment(4)
     predicted_loss = [x[1].detach().numpy() for x in influnce]
     actual_loss = [x.detach().numpy() for x in retrained]
+    save_result(predicted_loss, 'data/assets/p.pkl')
+    save_result(predicted_loss, 'data/assets/a.pkl')
     print(predicted_loss, actual_loss)
     plt.scatter(predicted_loss, actual_loss)
     plt.xlabel('influence')
