@@ -100,6 +100,9 @@ def train(remove = None, epoch = 5, device = None):
     return model
 
 def load_model(idx=None, epoch=20, device=None, rank=None):
+    '''
+    Entrance to all training procedures. If an identical (re)training is done before, load rather than train.
+    '''
     if device == None:
         print("device none", rank, device)
     if os.path.exists("data/models/trained_without_" + str(idx) + ".pth"):
@@ -134,6 +137,9 @@ def ddp_setup(rank, world_size, backend="nccl"):
     return device
 
 def worker_fn(rank, world_size, train_indices, test_idx, return_list):
+    '''
+    Worker function for paralleled leave-one-out retraining.
+    '''
     device = ddp_setup(rank, world_size, backend="nccl")
     print("starting subprocess", device)
 
@@ -154,6 +160,14 @@ def worker_fn(rank, world_size, train_indices, test_idx, return_list):
     dist.destroy_process_group()
 
 def calculate_retrained_loss(train_idx, test_idx):
+    '''
+    Entrance to calculating batched retrained loss.
+    input:
+        train_idx - a list of indice of training samples to conduct leave-one-out training on.
+        test_idx - the target test example to comput loss on.
+    output:
+        return_list - a list of (index_of_removed_training_sample, difference_in_loss)
+    '''
     os.environ['MASTER_ADDR'] = '127.0.0.1'
     os.environ['MASTER_PORT'] = '12355'
     world_size = torch.cuda.device_count()
