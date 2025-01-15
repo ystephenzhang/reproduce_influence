@@ -117,7 +117,7 @@ def hvp_approx(model, y, x, v):
     
     return hvp
 
-def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
+def inverse_hvp(train_dataset, model, v, t=5000, r=2, return_eig=False):
     '''
     Using the stochastic estimation method to calculate the product of an inverse Heissian and a vector.
     Three implementations are provided to compare speed/work as groud truth; implementation B is eventually
@@ -176,7 +176,7 @@ def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
             hessian_vec = hessian_vec + 1e-4 * product
             old_product = product
             product = v + (old_product - hessian_vec) / 10
-            print(torch.norm(product - old_product))
+            print(f"Magnitude of change:{torch.norm(product - old_product):.2f}, Magnitude of product:{torch.norm(product):2f}")
         if Hv is None:
             Hv = product / 10
         else:
