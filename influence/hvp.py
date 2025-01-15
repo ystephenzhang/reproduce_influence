@@ -8,6 +8,7 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.utils.data import DataLoader
 from torch.func import functional_call
 from scripts.train import prepare_mnist_dataset
+from scripts.utils import count_eigenvalue_categories
 
 import torch.multiprocessing as mp
 import torch.distributed as dist
@@ -119,9 +120,14 @@ def hvp_approx(model, y, x, v):
 def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
     '''
     Using the stochastic estimation method to calculate the product of an inverse Heissian and a vector.
+    Three implementations are provided to compare speed/work as groud truth; implementation B is eventually
+    selected, and the rest are commented.
     input:
         train_dataset - torch dataset used for stochastic estimaton of inv. H
         v - the vector to perform production with
+        t - number of iterations during each approximation
+        r - number of approximation to average across
+        return_eig - implementation A allows for analysis of Hessian estimation's eigenvalues to study convergence issues.fun
     return:
         Hv - estimation of the inverse product
     '''
@@ -135,16 +141,15 @@ def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
             idx = samples[j]
             x = train_dataset[idx][0].view(1, -1)
             y = torch.tensor([train_dataset[idx][1]])
-            
+            ''' 
             #A: Calculate Hessian, then mat mul with the vector
-            
             estimation = calculate_sample_H(model, x, y)
             if return_eig:
                 eigen_cnt = count_eigenvalue_categories(estimation)
                 eig.append(eigen_cnt)
             hessian_vec = torch.matmul(estimation, product)
-            
             '''
+            
             #B: use Pytorch hvp
             params = parameters_to_vector(model.parameters())
             param_shapes = {name: param.shape for name, param in model.named_parameters()}
@@ -163,19 +168,19 @@ def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
                 return criterion(outputs, y)
             result = hvp(hessian_wrapper, params, product)
             loss, hessian_vec = result
-            '''
+            
             #C: Use hand-implemented hvp calculator
             '''
             hessian_vec = hvp_approx(model, y, x, product)
             '''
             hessian_vec = hessian_vec + 1e-4 * product
-            product = v + (product - hessian_vec) / 10
-            print(torch.norm(product), torch.norm(hessian_vec))
+            old_product = product
+            product = v + (old_product - hessian_vec) / 10
+            print(torch.norm(product - old_product))
         if Hv is None:
             Hv = product / 10
         else:
             Hv = Hv + product / 10
-        #Hv = (Hv * i + product) / (i + 1)
         print(torch.norm(Hv))
     Hv = Hv / r
 
