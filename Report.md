@@ -4,6 +4,12 @@ title: Report
 ---
 
 ## Report
+
+### Dependencies
+Python 3.11; run the following to build the environment.
+`conda create -n influence python=3.11`
+`conda activate influence`
+`pip install -r requirements.txt`
 ### Theoretical Framework
 The figure to reproduce plots predicted difference in loss (represented by influence function as $-\frac{1}{n}I_{loss}(z,z_{test})$) against actual difference in loss (represented by difference of loss after retraining as in $L(z_{test}, \theta/\{z\}) - L(z_{test}, \theta)$), of 500 samples with the highest influence $|I_{loss}(z,z_{test})|$. The two quantities' high correlation should show influence function's stability in reflecting the effect of removing one training sample.
 
