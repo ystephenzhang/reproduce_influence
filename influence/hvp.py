@@ -7,7 +7,7 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.func import functional_call
 from influence.reference import hessian_vector_product
 
-import tensorflow as tf
+from scripts.utils import *
 def calculate_grad_L(idx, model, dataset, bsize=4, graph=False):
     '''
     input:
@@ -109,7 +109,7 @@ def hvp_approx(model, y, x, v):
     
     return hvp
 
-def inverse_hvp(train_dataset, model, v, t=500, r=2):
+def inverse_hvp(train_dataset, model, v, t=50, r=1, return_eig=False):
     '''
     Using the stochastic estimation method to calculate the product of an inverse Heissian and a vector.
     input:
@@ -118,6 +118,7 @@ def inverse_hvp(train_dataset, model, v, t=500, r=2):
     return:
         Hv - estimation of the inverse product
     '''
+    eig = []
     Hv = None
     for i in tqdm(range(r), desc="Approximating inv. HVP, repetition"):
         product = v
@@ -129,9 +130,13 @@ def inverse_hvp(train_dataset, model, v, t=500, r=2):
             y = torch.tensor([train_dataset[idx][1]])
             
             #A: Calculate Hessian, then mat mul with the vector
-            '''
+            
             estimation = calculate_sample_H(model, x, y)
-            hessian_vec_1 = torch.matmul(estimation, product)
+            if return_eig:
+                eigen_cnt = count_eigenvalue_categories(estimation)
+                eig.append(eigen_cnt)
+            hessian_vec = torch.matmul(estimation, product)
+            
             '''
             #B: use Pytorch hvp
             params = parameters_to_vector(model.parameters())
@@ -151,20 +156,26 @@ def inverse_hvp(train_dataset, model, v, t=500, r=2):
                 return criterion(outputs, y)
             result = hvp(hessian_wrapper, params, product)
             loss, hessian_vec = result
+            '''
             #C: Use hand-implemented hvp calculator
             '''
             hessian_vec = hvp_approx(model, y, x, product)
             '''
             hessian_vec = hessian_vec + 1e-4 * product
-            product = v + (product - hessian_vec) / 25
+            product = v + (product - hessian_vec) / 10
             print(torch.norm(product), torch.norm(hessian_vec))
         if Hv is None:
-            Hv = product / 25
+            Hv = product / 10
         else:
-            Hv = Hv + product / 25
+            Hv = Hv + product / 10
         #Hv = (Hv * i + product) / (i + 1)
         print(torch.norm(Hv))
     Hv = Hv / r
+
+    if return_eig:
+        eig = np.array(eig)
+        np.savetxt('data/assets/eig.txt', eig, fmt='%d', delimiter=' ')
+    
     return Hv
     
 def calculate_sample_H(model, x, y):
@@ -186,7 +197,7 @@ def calculate_sample_H(model, x, y):
     H = hessian(hessian_wrapper, params)
     return H
 
-def calculate_actual_H(train_dataset, model):
+def calculate_actual_H_serial(train_dataset, model):
     H = None
     samples = torch.randint(0, len(train_dataset), (1500, ))
     for j in tqdm(range(len(samples)), desc="Calculating ground truth H"):
@@ -199,14 +210,6 @@ def calculate_actual_H(train_dataset, model):
         else:
             H = (H * i + h) / (i + 1)
     return H
-            
-def inverse_hvp_with_oracle(train_dataset, model, v, t=10):
-    H = calculate_actual_H(train_dataset, model)
-    change = 0
-    product = v
-    for j in tqdm(range(t), desc=f"Iterating, stabilizing: {change:.2f}"):
-        product = v + product - torch.matmul(H, product)
-    return product
 
 def inverse_hvp_with_oracle(v, dir, t=20):
     H = torch.load(dir)
@@ -219,3 +222,4 @@ def inverse_hvp_with_oracle(v, dir, t=20):
         step = torch.norm(v - torch.matmul(H, old_product))
         print(change, step)
     return product / 10
+

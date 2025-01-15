@@ -78,9 +78,9 @@ def train(remove = None, epoch = 5):
     model = LogisticRegressionModel(28 * 28, 10)
     train_loader, _ = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.008)
+    optimizer = optim.SGD(model.parameters(), lr=0.03, weight_decay=1e-4)
     
-    name = "models/trained_without_" + str(remove)
+    name = "data/models/trained_without_" + str(remove)
     train_procedure(model, train_loader, criterion, optimizer, num_epochs = epoch)
     torch.save(model.state_dict(), name + ".pth")
 
