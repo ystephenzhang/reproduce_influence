@@ -52,10 +52,8 @@ Moreover, I deviced a parallel pipeline in `influence::hvp::actual_H_with_data_p
 
 *Next Steps.* 
 * Given the simple nature of a logistic model on MNIST classification, I'll continue on trying to produce a roughly optimal model.
-* In the meantime I'll adapt the loss function to $$
-\begin{aligned}
+* In the meantime I'll adapt the loss function to $$ \begin{aligned}
 \tilde{L}(z, \theta) &= L(z, \hat{\theta}) + 
 \nabla L(z, \hat{\theta})^\top (\theta - \hat{\theta})\\
 &+ \frac{1}{2} (\theta - \hat{\theta})^\top (H_{\hat{\theta}} + \lambda I)(\theta - \hat{\theta})
-\end{aligned}$$
-    According to the original work as a solution to non-convex situations.
+\end{aligned} $$ According to the original work as a solution to non-convex situations.
