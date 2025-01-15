@@ -89,7 +89,7 @@ def train(remove = None, epoch = 5, device = None):
         model.to(device)
     train_loader, test_loader = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.005, weight_decay=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=0.008, weight_decay=1e-3)
     
     name = "data/models/trained_without_" + str(remove)
     train_procedure(model, train_loader, test_loader, criterion, optimizer, num_epochs = epoch, device = device)

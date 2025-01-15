@@ -2,7 +2,7 @@ from scripts.model import *
 from scripts.train import *
 import os, pickle
 
-def load_model(idx=None, epoch=20):
+def load_model(idx=None, epoch=10):
     if os.path.exists("data/models/trained_without_" + str(idx) + ".pth"):
         model = LogisticRegressionModel(28 * 28, 10)
         model.load_state_dict(torch.load("data/models/trained_without_" + str(idx) + ".pth"))
