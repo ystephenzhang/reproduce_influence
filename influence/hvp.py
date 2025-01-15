@@ -1,15 +1,22 @@
 import numpy as np
 from tqdm import tqdm
+import os
 import torch
 import torch.nn as nn
 from torch.autograd.functional import hvp, hessian
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
+from torch.utils.data import DataLoader
 from torch.func import functional_call
-from influence.reference import hessian_vector_product
+from scripts.train import prepare_mnist_dataset
 
-from scripts.utils import *
+import torch.multiprocessing as mp
+import torch.distributed as dist
+from torch.utils.data.distributed import DistributedSampler
+from multiprocessing import Manager
+
 def calculate_grad_L(idx, model, dataset, bsize=4, graph=False):
     '''
+    Calculate gradient of cross entropy loss w.r.t. model's parameter on the example given by idx.
     input:
         idx - list of target indices
         model - logistic model
@@ -27,11 +34,11 @@ def calculate_grad_L(idx, model, dataset, bsize=4, graph=False):
         # print(len(target), target[0][1])
         x = torch.stack([x[0] for x in target]) 
         y = torch.stack([torch.tensor(x[1]) for x in target]) 
-    
+
         model.zero_grad()
         pred = model(x.view(-1, 784))
         loss = criterion(pred, y)
-        grad_this = torch.autograd.grad(loss, model.parameters(), create_graph=graph, retain_graph=True)
+        grad_this = torch.autograd.grad(loss, model.parameters(), create_graph=graph)
         grad_this = torch.cat((grad_this[0].flatten(), grad_this[1].flatten()))
         
         grad.append(grad_this)
@@ -192,12 +199,12 @@ def calculate_sample_H(model, x, y):
     def hessian_wrapper(new_params):
         new_params_dict = vector_to_param_dict(new_params, param_shapes)
         outputs = functional_call(model, new_params_dict, x)
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(reduction = 'mean')
         return criterion(outputs, y)        
     H = hessian(hessian_wrapper, params)
     return H
 
-def calculate_actual_H_serial(train_dataset, model):
+def actual_H_serial(train_dataset, model):
     H = None
     samples = torch.randint(0, len(train_dataset), (1500, ))
     for j in tqdm(range(len(samples)), desc="Calculating ground truth H"):
@@ -210,6 +217,14 @@ def calculate_actual_H_serial(train_dataset, model):
         else:
             H = (H * i + h) / (i + 1)
     return H
+            
+def inverse_hvp_with_oracle(v, dir, t=20):
+    H = torch.load(dir)
+    product = v
+    change = 0
+    for j in tqdm(range(t), desc=f"Iterating, stabilizing: {change:.2f}"):
+        product = v + product - torch.matmul(H, product)
+    return product
 
 def inverse_hvp_with_oracle(v, dir, t=20):
     H = torch.load(dir)
@@ -222,4 +237,78 @@ def inverse_hvp_with_oracle(v, dir, t=20):
         step = torch.norm(v - torch.matmul(H, old_product))
         print(change, step)
     return product / 10
+        
+
+class hessian_oracle(nn.Module):
+    def __init__(self):
+        super(hessian_oracle, self).__init__()
+
+    def forward(self, data, model):
+        H = calculate_sample_H(model, data[0], data[1])
+        return H
+    
+def actual_H_with_data_parallel(train_dataset, model):
+    module = hessian_oracle()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    '''
+    if torch.cuda.device_count() > 1:
+        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        model = nn.DataParallel(model)
+    '''
+    model.to(device)
+
+    loader = DataLoader(dataset=train_dataset,
+                         batch_size=32, shuffle=True)
+    H = None
+    for i, batch in tqdm(enumerate(loader), desc="Calculating i.h.v.p. with oracle"):
+        input = torch.stack([x.view(-1) for x in batch[0]]).to(device)
+        label = torch.tensor(batch[1]).to(device)
+        
+        h = module((input, label), model)
+        h = torch.mean(h, dim=0)
+        if H == None:
+            H = h
+        else:
+            H = (H * i + h) / (i + 1)
+    
+    return H
+
+def worker(rank, world_size, return_list, train_dataset, model):
+        dist.init_process_group("nccl", rank=rank, world_size=world_size)
+
+        # 指定当前进程使用的 GPU
+        device = torch.device(f"cuda:{rank}")
+        torch.cuda.set_device(device)
+        sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank)
+        dataloader = DataLoader(train_dataset, sampler=sampler, batch_size=1024)
+
+        #data: input, label, model
+        model = model.to(device)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+        for data in tqdm(dataloader, desc=f"Rank {rank} processing"):
+            input = torch.stack([x.view(-1) for x in data[0]]).to(device)
+            label = data[1].to(device)
+            result = calculate_sample_H(model, input, label)
+            return_list.append(result.cpu())
+        print(f"Rank {rank} completed")
+
+        # 销毁进程组
+        dist.destroy_process_group()
+
+def actual_H_with_distributed_parallel(train_dataset, model):
+    os.environ["MASTER_ADDR"] = "127.0.0.1"  # 设置主进程地址
+    os.environ["MASTER_PORT"] = "12355" 
+
+    world_size = torch.cuda.device_count()
+    manager = Manager()
+    return_list = manager.list()
+    mp.spawn(worker, args=(world_size, return_list, train_dataset, model), nprocs=world_size, join=True)
+    
+    n = len(return_list)
+    H = torch.stack(list(return_list))
+    H = torch.mean(H, dim = 0)
+    print("completed, length:", n, "resulting size: ", H.shape)
+    return H
+
+    
 

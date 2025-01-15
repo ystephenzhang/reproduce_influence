@@ -22,7 +22,7 @@ def experiment(n=5):
     model.eval()
     train_data, test_data = prepare_mnist_dataset()
     test_idx = torch.randint(0, len(test_data), (1,))
-    
+    print(len(train_data))
     influence = calculate_influence(range(len(train_data)), train_data, test_idx, test_data, model)
     influence = sorted(enumerate(influence), key=lambda x: x[1], reverse=True)[:n]
     influence = [- x[1] / len(train_data) for x in influence]
@@ -31,8 +31,9 @@ def experiment(n=5):
     return influence, retrained
 
 if __name__ == "__main__":
-    influnce, retrained = experiment(10)
+    influnce, retrained = experiment(500)
     predicted_loss = [x[1].detach().numpy() for x in influnce]
+    predicted_loss = [- x / 60000 for x in predicted_loss]
     actual_loss = [x.detach().numpy() for x in retrained]
     save_result(predicted_loss, 'data/assets/p.pkl')
     save_result(actual_loss, 'data/assets/a.pkl')
@@ -42,3 +43,26 @@ if __name__ == "__main__":
     plt.ylabel('retrained')
     
     plt.savefig('test.png')
+'''
+if __name__ == "__main__":
+    model = load_model()
+    
+    model.eval()
+    train_data, test_data = prepare_mnist_dataset()
+    test_idx = torch.randint(0, len(test_data), (1,))
+    print(test_idx)
+    influence = calculate_influence(range(len(train_data)), train_data, test_idx, test_data, model)
+    influence = sorted(enumerate(influence), key=lambda x: x[1], reverse=True)[:200]
+    predicted_loss = [-x[1] / 6000 for x in influence]
+    save_result(predicted_loss, 'data/assets/p.pkl')
+
+    retrained = calculate_retrained_loss([x[0] for x in influence], test_idx)
+    retrained = sorted(retrained, key=lambda x: {tup[0]: i for i, tup in enumerate(influence)}[x[0]])
+    actual_loss = [x[1] for x in retrained]
+    save_result(actual_loss, 'data/assets/a.pkl')
+
+    plt.scatter(predicted_loss, actual_loss)
+    plt.xlabel('influence')
+    plt.ylabel('retrained')
+    
+    plt.savefig('test3.png')
