@@ -25,8 +25,8 @@ def experiment(n=5):
     print(len(train_data))
     influence = calculate_influence(range(len(train_data)), train_data, test_idx, test_data, model)
     influence = sorted(enumerate(influence), key=lambda x: x[1], reverse=True)[:n]
-    #retrained = [leave_one_out(x[0], test_idx) for x in influence]
-    retrained = calculate_retrained_loss([x[0] for x in influence], test_idx)
+    retrained = [leave_one_out(x[0], test_idx) for x in influence]
+    #retrained = calculate_retrained_loss([x[0] for x in influence], test_idx)
     return influence, retrained, test_idx
 '''
 if __name__ == "__main__":
