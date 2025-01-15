@@ -66,3 +66,4 @@ if __name__ == "__main__":
     plt.ylabel('retrained')
     
     plt.savefig('test3.png')
+'''
