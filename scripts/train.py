@@ -89,7 +89,7 @@ def train(remove = None, epoch = 5, device = None):
         model.to(device)
     train_loader, test_loader = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.008, weight_decay=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=0.005, weight_decay=1e-3)
     
     name = "data/models/trained_without_" + str(remove)
     train_procedure(model, train_loader, test_loader, criterion, optimizer, num_epochs = epoch, device = device)
@@ -118,7 +118,7 @@ def leave_one_out(train_idx, test_idx, device=None, rank=None):
     _model = load_model(device=device, rank=rank)
     model = load_model(train_idx, device=device, rank=rank)
      
-    _, test_dataset = prepare_mnist_dataset(remove=None)
+    _, test_dataset = prepare_mnist_dataset()
     x = test_dataset[test_idx[0]][0].view(1, -1)
     y = torch.tensor([test_dataset[test_idx[0]][1]]) 
     return test_single(model, x, y) - test_single(_model, x, y)

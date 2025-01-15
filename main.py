@@ -25,15 +25,16 @@ def experiment(n=5):
     print(len(train_data))
     influence = calculate_influence(range(len(train_data)), train_data, test_idx, test_data, model)
     influence = [(i, -x) for i,x in enumerate(influence)]
-    influence = sorted(enumerate(influence), key=lambda x: torch.abs(x[1]), reverse=True)[:n]
-    #retrained = calculate_retrained_loss([x[0] for x in influence], test_idx)
-    retrained = [leave_one_out(x[0], test_idx) for x in influence]
+    influence = sorted(influence, key=lambda x: torch.abs(x[1]), reverse=True)[:n]
+    retrained = calculate_retrained_loss([x[0] for x in influence], test_idx)
+    retrained = sorted(retrained, key=lambda x: {tup[0]: i for i, tup in enumerate(influence)}[x[0]])
+    retrained = [x[1] for x in retrained]
+    #retrained = [leave_one_out(x[0], test_idx) for x in influence]
     influence = [x[1].detach().numpy() for x in influence]
     return influence, retrained
 
 if __name__ == "__main__":
-    predicted_loss, retrained = experiment(15)
-    actual_loss = [x.detach().numpy() for x in retrained]
+    predicted_loss, actual_loss = experiment(50)
     save_result(predicted_loss, 'data/assets/p.pkl')
     save_result(actual_loss, 'data/assets/a.pkl')
     print(predicted_loss, actual_loss)
