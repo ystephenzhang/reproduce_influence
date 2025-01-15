@@ -89,7 +89,7 @@ def train(remove = None, epoch = 5, device = None):
         model.to(device)
     train_loader, test_loader = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.008, weight_decay=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=0.005, weight_decay=1e-3)
     
     name = "data/models/trained_without_" + str(remove)
     train_procedure(model, train_loader, test_loader, criterion, optimizer, num_epochs = epoch, device = device)
@@ -100,6 +100,9 @@ def train(remove = None, epoch = 5, device = None):
     return model
 
 def load_model(idx=None, epoch=20, device=None, rank=None):
+    '''
+    Entrance to all training procedures. If an identical (re)training is done before, load rather than train.
+    '''
     if device == None:
         print("device none", rank, device)
     if os.path.exists("data/models/trained_without_" + str(idx) + ".pth"):
@@ -118,7 +121,7 @@ def leave_one_out(train_idx, test_idx, device=None, rank=None):
     _model = load_model(device=device, rank=rank)
     model = load_model(train_idx, device=device, rank=rank)
      
-    _, test_dataset = prepare_mnist_dataset(remove=None)
+    _, test_dataset = prepare_mnist_dataset()
     x = test_dataset[test_idx[0]][0].view(1, -1)
     y = torch.tensor([test_dataset[test_idx[0]][1]]) 
     return test_single(model, x, y) - test_single(_model, x, y)
@@ -134,6 +137,9 @@ def ddp_setup(rank, world_size, backend="nccl"):
     return device
 
 def worker_fn(rank, world_size, train_indices, test_idx, return_list):
+    '''
+    Worker function for paralleled leave-one-out retraining.
+    '''
     device = ddp_setup(rank, world_size, backend="nccl")
     print("starting subprocess", device)
 
@@ -154,6 +160,14 @@ def worker_fn(rank, world_size, train_indices, test_idx, return_list):
     dist.destroy_process_group()
 
 def calculate_retrained_loss(train_idx, test_idx):
+    '''
+    Entrance to calculating batched retrained loss.
+    input:
+        train_idx - a list of indice of training samples to conduct leave-one-out training on.
+        test_idx - the target test example to comput loss on.
+    output:
+        return_list - a list of (index_of_removed_training_sample, difference_in_loss)
+    '''
     os.environ['MASTER_ADDR'] = '127.0.0.1'
     os.environ['MASTER_PORT'] = '12355'
     world_size = torch.cuda.device_count()
