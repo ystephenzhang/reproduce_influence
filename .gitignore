@@ -2,5 +2,4 @@
 reference/*
 tf/*
 mnist/*
-*.png
 data/*
