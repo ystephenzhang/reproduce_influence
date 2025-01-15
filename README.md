@@ -15,7 +15,7 @@ The figure to reproduce plots predicted difference in loss (represented by influ
 
 The specific figure to reproduce is the middle one below, corresponding to a LiSSA-based approximation method.
 
-![Screenshot 2025-01-15 at 09.59.49](https://hackmd.io/_uploads/rkZj85VPJx.png)
+![Screenshot 2025-01-15 at 09.59.49](assets/1.png)
 
 There are two aspects to reproducing this figure: the actual difference and the predicted the difference. The former can be efficiently done with parralleled re-training, while the latter incorporates key acceleration methods. **The following is a report of a PyTorch based attempt.**
 ### Implementation
@@ -36,12 +36,12 @@ Step 3 and 4 are integrated in `main::calculate_influence`.
 *Actual Loss.* This is done by simply removing samples and retraining. To efficiently complete retraining of the 500 models, `scripts::train::calculate_retrained_loss` provided a distributed data parallel implementation. Also, to avoid repeated retraining, all retrained models' parameters will be saved locally for direct loading.
 ### Results and Reflection
 *Explosion in Magnitude.* The first problem I encounter is that when calculating the inverse Hessian product through iteration, magnitudes of the product explodes long before it is supposed to converge. 
-![Screenshot 2025-01-15 at 18.01.55](https://hackmd.io/_uploads/Bk7iDWHwyg.png)
+![Screenshot 2025-01-15 at 18.01.55](assets/2.png)
  This is solved by adding `1e-4 * product` to the Hessian-vector product at each iteration so as to avoid problems caused by inversing, and by performing scaling to the product at each step.
  
 *Random Results.* Although the Hessian vector product is converging, results are seemingly random, as shown in the below figures with $top-30$ and $top-200$ influence examples, respectively.
-![figure1](https://hackmd.io/_uploads/HysTK7BPkl.png)
-![figure2](https://hackmd.io/_uploads/SybRFXHvkg.png)
+![figure1](assets/3.png)
+![figure2](assets/4.png)
 After studying eigenvalues of the final Hessian matrix, I identified the problem as parameters of the logistic model being sub-optimal: most Hessian estimations are far from positive definite.
 
 Moreover, I deviced a parallel pipeline in `influence::hvp::actual_H_with_data_parallel` to calculate the actual Hessian of all 6000 losses w.r.t. model parameters, and it is still not positive semi definite. The oracle Hessian's eigenvalues are counted as follows:
@@ -57,6 +57,5 @@ Moreover, I deviced a parallel pipeline in `influence::hvp::actual_H_with_data_p
 \tilde{L}(z, \theta) &= L(z, \hat{\theta}) + 
 \nabla L(z, \hat{\theta})^\top (\theta - \hat{\theta})\\
 &+ \frac{1}{2} (\theta - \hat{\theta})^\top (H_{\hat{\theta}} + \lambda I)(\theta - \hat{\theta})
-\end{aligned}
-$$
+\end{aligned}$$
     According to the original work as a solution to non-convex situations.
