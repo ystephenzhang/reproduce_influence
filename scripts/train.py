@@ -60,7 +60,7 @@ def train_procedure(model, train_loader, test_loader, criterion, optimizer, num_
             total_loss += loss.item()
         
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/len(train_loader):.4f}")
-        test(model, test_loader)
+        #test(model, test_loader)
     
 def test(model, test_loader):
     model.eval()
@@ -78,8 +78,10 @@ def test(model, test_loader):
     return 
 
 def test_single(model, x, y):
+    criterion = nn.CrossEntropyLoss()
     y_pred = model.forward(x)
-    return -torch.log(y_pred[0][y])
+    loss = criterion(y_pred, y)
+    return loss
     
 def train(remove = None, epoch = 5, device = None):
     model = LogisticRegressionModel(28 * 28, 10)
@@ -87,7 +89,7 @@ def train(remove = None, epoch = 5, device = None):
         model.to(device)
     train_loader, test_loader = prepare_mnist(remove = remove)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=1e-3)
+    optimizer = optim.SGD(model.parameters(), lr=0.005, weight_decay=1e-3)
     
     name = "data/models/trained_without_" + str(remove)
     train_procedure(model, train_loader, test_loader, criterion, optimizer, num_epochs = epoch, device = device)
